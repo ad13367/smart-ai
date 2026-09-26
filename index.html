@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart AI</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;background:#fff;color:#202124;height:100vh;overflow:hidden}
+.app{height:100vh;display:flex;flex-direction:column}
+header{height:70px;border-bottom:1px solid #e5e5e5;display:flex;align-items:center;padding:0 18px;gap:16px}
+.logo{font-size:25px;font-weight:700;flex:1}
+.icon-btn{width:46px;height:46px;border:1px solid #ddd;border-radius:14px;background:#fff;font-size:22px;cursor:pointer}
+.icon-btn:hover{background:#f5f5f5}
+main{flex:1;overflow-y:auto;padding:22px 16px 170px}
+.message{display:flex;gap:12px;margin:18px auto;max-width:850px}
+.avatar{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:none;font-weight:bold;color:white;background:#555}
+.ai .avatar{background:#10a889}
+.bubble{padding:16px 18px;border-radius:18px;line-height:1.55;white-space:pre-wrap;max-width:calc(100% - 55px)}
+.user .bubble{background:#eaf8f5;margin-left:auto}
+.ai .bubble{background:#f5f5f5}
+.empty{text-align:center;margin-top:18vh;color:#777}
+.empty h1{color:#222;font-size:32px;margin-bottom:8px}
+.composer-wrap{position:fixed;bottom:0;left:0;right:0;background:linear-gradient(transparent,#fff 22%);padding:35px 16px 18px}
+.composer{max-width:850px;margin:auto;border:1px solid #ddd;border-radius:22px;background:#fff;box-shadow:0 4px 20px #00000012;padding:10px}
+.tools{display:flex;gap:8px;margin-bottom:8px}
+.tool{border:0;background:#fff;color:#666;padding:8px 12px;border-radius:10px;cursor:pointer;font-size:14px}
+.tool:hover{background:#f1f1f1}
+.row{display:flex;gap:10px}
+textarea{flex:1;border:0;outline:0;resize:none;font:inherit;padding:10px;min-height:48px;max-height:140px}
+.send{width:52px;height:52px;border:0;border-radius:15px;background:#10a889;color:#fff;font-size:23px;cursor:pointer}
+.send:disabled{opacity:.5}
+.drawer,.settings{position:fixed;top:0;bottom:0;width:300px;background:#fff;box-shadow:0 0 25px #0002;z-index:10;padding:20px;transition:.25s}
+.drawer{left:-320px}.drawer.open{left:0}
+.settings{right:-320px}.settings.open{right:0}
+.overlay{display:none;position:fixed;inset:0;background:#0005;z-index:9}.overlay.show{display:block}
+.close{float:right;border:0;background:none;font-size:25px}
+.chat-item{padding:12px;border-radius:10px;cursor:pointer;margin:5px 0}.chat-item:hover{background:#f3f3f3}
+.newchat{width:100%;padding:12px;border:0;border-radius:12px;background:#10a889;color:#fff;font-weight:bold;cursor:pointer;margin:20px 0}
+label{display:block;margin-top:18px;font-size:14px;color:#666}
+input{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;margin-top:7px}
+.save{margin-top:15px;width:100%;padding:12px;border:0;border-radius:10px;background:#10a889;color:#fff}
+.status{font-size:12px;color:#777;margin-top:10px;line-height:1.4}
+@media(max-width:600px){header{height:62px}.logo{font-size:22px}.message{max-width:100%}.bubble{font-size:15px}.empty h1{font-size:27px}}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+<button class="icon-btn" onclick="toggleDrawer()">☰</button>
+<div class="logo">Smart AI</div>
+<button class="icon-btn" onclick="toggleSettings()">⚙</button>
+</header>
+
+<main id="chat">
+<div class="empty" id="empty">
+<h1>How can I help you?</h1>
+<p>Ask Smart AI anything.</p>
+</div>
+</main>
+
+<div class="composer-wrap">
+<div class="composer">
+<div class="tools">
+<button class="tool" onclick="newChat()">＋ New chat</button>
+<button class="tool" onclick="imageMode()">🖼 Image</button>
+</div>
+<div class="row">
+<textarea id="input" placeholder="Message Smart AI..." rows="1"></textarea>
+<button class="send" id="send" onclick="sendMessage()">➤</button>
+</div>
+</div>
+</div>
+</div>
+
+<div class="overlay" id="overlay" onclick="closePanels()"></div>
+
+<aside class="drawer" id="drawer">
+<button class="close" onclick="closePanels()">×</button>
+<h2>Smart AI</h2>
+<button class="newchat" onclick="newChat();closePanels()">＋ New chat</button>
+<h3>Saved chats</h3>
+<div id="history"></div>
+</aside>
+
+<aside class="settings" id="settings">
+<button class="close" onclick="closePanels()">×</button>
+<h2>Settings</h2>
+<label>Backend URL</label>
+<input id="backend" placeholder="https://your-server.com/chat">
+<button class="save" onclick="saveSettings()">Save</button>
+<p class="status">For a real AI website, connect this frontend to your secure backend. Do not put a secret AI API key in this page.</p>
+</aside>
+
+<script>
+const input=document.getElementById('input');
+const chat=document.getElementById('chat');
+const empty=document.getElementById('empty');
+const send=document.getElementById('send');
+let messages=JSON.parse(localStorage.getItem('smart_ai_messages')||'[]');
+let backend=localStorage.getItem('smart_ai_backend')||'';
+
+document.getElementById('backend').value=backend;
+render();
+
+input.addEventListener('input',()=>{input.style.height='auto';input.style.height=Math.min(input.scrollHeight,140)+'px'});
+input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}});
+
+function addMessage(role,text){
+ messages.push({role,text});
+ localStorage.setItem('smart_ai_messages',JSON.stringify(messages));
+ render();
+}
+function render(){
+ chat.innerHTML='';
+ if(!messages.length){chat.appendChild(empty);return}
+ messages.forEach(m=>{
+  const box=document.createElement('div');
+  box.className='message '+(m.role==='user'?'user':'ai');
+  box.innerHTML='<div class="avatar">'+(m.role==='user'?'You':'S')+'</div><div class="bubble"></div>';
+  box.querySelector('.bubble').textContent=m.text;
+  chat.appendChild(box);
+ });
+ chat.scrollTop=chat.scrollHeight;
+ updateHistory();
+}
+async function sendMessage(){
+ const text=input.value.trim();
+ if(!text)return;
+ addMessage('user',text);
+ input.value='';input.style.height='auto';
+ send.disabled=true;
+ if(!backend){
+   setTimeout(()=>{addMessage('assistant','Your Smart AI interface is working. To receive real AI answers, open Settings and connect a secure backend URL.');send.disabled=false},400);
+   return;
+ }
+ try{
+   const res=await fetch(backend,{
+     method:'POST',
+     headers:{'Content-Type':'application/json'},
+     body:JSON.stringify({messages})
+   });
+   if(!res.ok)throw new Error('Server error '+res.status);
+   const data=await res.json();
+   addMessage('assistant',data.reply||data.message||'No response received.');
+ }catch(err){
+   addMessage('assistant','I could not connect to the AI server. Check your backend URL and internet connection.');
+ }finally{send.disabled=false}
+}
+function newChat(){messages=[];localStorage.removeItem('smart_ai_messages');render()}
+function imageMode(){input.value='Create an image of ';input.focus()}
+function toggleDrawer(){document.getElementById('drawer').classList.add('open');document.getElementById('overlay').classList.add('show');updateHistory()}
+function toggleSettings(){document.getElementById('settings').classList.add('open');document.getElementById('overlay').classList.add('show')}
+function closePanels(){document.querySelectorAll('.drawer,.settings').forEach(x=>x.classList.remove('open'));document.getElementById('overlay').classList.remove('show')}
+function saveSettings(){backend=document.getElementById('backend').value.trim();localStorage.setItem('smart_ai_backend',backend);closePanels();alert('Settings saved.')}
+function updateHistory(){
+ const h=document.getElementById('history');
+ if(!messages.length){h.innerHTML='<p style="color:#777">No saved messages yet.</p>';return}
+ h.innerHTML='<div class="chat-item" onclick="closePanels()">Current chat</div>';
+}
+</script>
+</body>
+</html>
